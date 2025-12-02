@@ -22,19 +22,19 @@ int main(int argc, char* argv[]) {
     using std::string;
 
     auto filename = fs::path{"../data/shakespeare.txt"};
-    auto min_length = 5U;
+    auto min_length = 6U;
     auto max_words = 100U;
-    auto max_font = 150;
-    auto min_font = 20;
+    auto max_font  = 200U;
+    auto min_font  = 40U;
 
     for (auto k = 1; k < argc; ++k) {
         auto arg = string{argv[k]};
         if (arg == "--file"s) {
             filename = fs::path{argv[++k]};
         } else if (arg == "--min"s) {
-            min_length = std::stoi(argv[++k]);
+            min_length = std::stoul(argv[++k]);
         } else if (arg == "--max"s) {
-            max_words = std::stoi(argv[++k]);
+            max_words = std::stoul(argv[++k]);
         }
     }
 
@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
     auto freqs = std::unordered_map<string, unsigned>{};
     freqs.reserve(10'000); {
         auto drop_small_words = [min_length](string const& word) -> bool {
-            return word.size() > min_length;
+            return word.size() >= min_length;
         };
         auto drop_modern_words = [](string const& word) -> bool {
             static auto const modern_words = std::unordered_set{
@@ -53,7 +53,10 @@ int main(int argc, char* argv[]) {
             return not modern_words.contains(word);
         };
         auto to_lower_case = [](string word) -> string {
-            for (char& c: word) { c = std::tolower(c); }
+            for (char& c: word) {
+                auto ch = static_cast<unsigned char>(c);
+                c = static_cast<char>(std::tolower(ch));
+            }
             return word;
         };
         auto count_words = [&freqs](string const& word) { ++freqs[word]; };
@@ -113,11 +116,11 @@ int main(int argc, char* argv[]) {
         return std::format("#{:02X}{:02X}{:02X}", B(R), B(R), B(R));
     };
 
-    auto to_span_tag = [scale, min_font, &rnd_color](WordCount& wc) {
-        auto& word = wc.first;
-        auto freq = wc.second;
-        auto size = static_cast<int>(scale * freq) + min_font;
-        auto colr = rnd_color();
+    auto to_span_tag = [scale, min_cnt, min_font, &rnd_color](WordCount const& wc) {
+        auto const& word = wc.first;
+        auto freq        = wc.second;
+        auto size        = static_cast<int>(scale * (freq - min_cnt)) + min_font;
+        auto colr        = rnd_color();
         return std::format(
             R"(<span style="font-size: {}px; color: {};" title="The word '{}' occurs {} times" >{}</span>)",
             size, colr, word, freq, word);

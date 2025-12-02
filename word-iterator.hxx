@@ -35,7 +35,7 @@ public:
     }
 
     friend bool operator==(WordIterator const& a, WordIterator const& b) {
-        return a.at_eof == b.at_eof;
+        return a.input == b.input && a.at_eof == b.at_eof;
     }
     friend bool operator!=(WordIterator const& a, WordIterator const& b) {
         return !(a == b);
