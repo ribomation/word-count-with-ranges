@@ -46,11 +46,6 @@ private:
     std::string   current_word{};
     bool          at_eof{true};
 
-    static bool is_letter(char c) {
-        auto ch = static_cast<unsigned char>(c);
-        return std::isalpha(ch) || ch == '\'';
-    }
-
     void read_next() {
         if (input == nullptr) {
             at_eof = true;
@@ -71,5 +66,10 @@ private:
             current_word.push_back(ch);
         }
         at_eof = false;
+    }
+
+    static bool is_letter(char c) {
+        auto ch = static_cast<unsigned char>(c);
+        return std::isalpha(ch) || ch == '\'';
     }
 };

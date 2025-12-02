@@ -21,11 +21,11 @@ int main(int argc, char* argv[]) {
     using namespace std::string_literals;
     using std::string;
 
-    auto filename   = fs::path{"../data/shakespeare.txt"};
+    auto filename = fs::path{"../data/shakespeare.txt"};
     auto min_length = 5U;
-    auto max_words  = 100U;
-    auto max_font   = 150;
-    auto min_font   = 20;
+    auto max_words = 100U;
+    auto max_font = 150;
+    auto min_font = 20;
 
     for (auto k = 1; k < argc; ++k) {
         auto arg = string{argv[k]};
@@ -42,8 +42,7 @@ int main(int argc, char* argv[]) {
     std::println("Loading {:.2f} MB from '{}'", fs::file_size(filename) / (1024.0 * 1024), filename.string());
 
     auto freqs = std::unordered_map<string, unsigned>{};
-    freqs.reserve(10'000);
-    {
+    freqs.reserve(10'000); {
         auto drop_small_words = [min_length](string const& word) -> bool {
             return word.size() > min_length;
         };
@@ -60,17 +59,43 @@ int main(int argc, char* argv[]) {
         auto count_words = [&freqs](string const& word) { ++freqs[word]; };
 
         auto in = std::ifstream{filename};
-        if (!in) {
+        if (not in) {
             std::cerr << "Failed to open file\n";
             return 1;
         }
-        r::for_each(r::subrange{WordIterator{in}, WordIterator{}}
-                    | v::filter(drop_small_words)
-                    | v::transform(to_lower_case)
-                    | v::filter(drop_modern_words)
-                    ,
-                    count_words
-        );
+
+        // --- Alternative 1 ---
+        auto in_iter  = WordIterator{in};
+        auto eof_iter = WordIterator{};
+        auto read_words_pipeline =
+                r::subrange{in_iter, eof_iter}
+                | v::filter(drop_small_words)
+                | v::transform(to_lower_case)
+                | v::filter(drop_modern_words);
+
+        // --- Alternative 2 ---
+        /*
+        auto strip_non_letters = [](string const& word) {
+            auto result = string{};
+            result.reserve(word.size());
+            auto is_letter = [](char c) -> bool {
+                auto ch = static_cast<unsigned char>(c);
+                return std::isalpha(ch) || ch == '\'';
+            };
+            for (char c: word) if (is_letter(c)) result += c;
+            return result;
+        };
+        auto in_iter  = std::istream_iterator<string>{in};
+        auto eof_iter = std::istream_iterator<string>{};
+        auto read_words_pipeline =
+                r::subrange{in_iter, eof_iter}
+                | v::transform(strip_non_letters)
+                | v::filter(drop_small_words)
+                | v::transform(to_lower_case)
+                | v::filter(drop_modern_words);
+                */
+
+        r::for_each(read_words_pipeline, count_words);
     }
 
     auto sortable = std::vector<WordCount>(freqs.begin(), freqs.end());
@@ -90,19 +115,17 @@ int main(int argc, char* argv[]) {
 
     auto to_span_tag = [scale, min_font, &rnd_color](WordCount& wc) {
         auto& word = wc.first;
-        auto freq  = wc.second;
-        auto size  = static_cast<int>(scale * freq) + min_font;
-        auto colr  = rnd_color();
+        auto freq = wc.second;
+        auto size = static_cast<int>(scale * freq) + min_font;
+        auto colr = rnd_color();
         return std::format(
             R"(<span style="font-size: {}px; color: {};" title="The word '{}' occurs {} times" >{}</span>)",
             size, colr, word, freq, word);
     };
     auto tags = items | v::transform(to_span_tag) | r::to<std::vector<string>>();
-    r::shuffle(tags, R);
-
-    {
+    r::shuffle(tags, R); {
         auto outfile = fs::path{filename.stem().string() + ".html"s};
-        auto out     = std::ofstream{outfile};
+        auto out = std::ofstream{outfile};
         if (not out) throw std::runtime_error{"cannot open outfile "s + outfile.string()};
 
         out << R"(<!DOCTYPE html>
@@ -113,14 +136,16 @@ int main(int argc, char* argv[]) {
                     <title>Word Frequencies</title>
                 </head>
             <body>
-        )";
-        out << "<h1>The " << max_words << " most frequent words of <code>" << filename.string() << "</code></h1>\n";
+        )"
+                << std::format("<h1>The {} most frequent words of <code>{}</code></h1>", max_words, filename.string());
+
         for (auto&& tag: tags) out << tag << "\n";
-        out << R"(</body>\n</html>\n)";
+
+        out << "</body></html>\n";
         std::println("written result to '{}'", outfile.string());
     }
 
-    auto end_time     = c::high_resolution_clock::now();
+    auto end_time = c::high_resolution_clock::now();
     auto elapsed_time = c::duration_cast<c::milliseconds>(end_time - start_time);
     std::println("Elapsed time was {} ms", elapsed_time.count());
 }
